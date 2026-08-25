@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BIX — Админ-панель</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700;800;900&family=Manrope:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+  :root{
+    --bg:#0A0918;
+    --bg2:#120F26;
+    --panel: rgba(255,255,255,0.05);
+    --panel-solid:#161331;
+    --line: rgba(255,255,255,0.10);
+    --pink:#FF2FB4;
+    --cyan:#2BF6E0;
+    --lime:#C6FF3D;
+    --violet:#8A5CFF;
+    --amber:#FFB020;
+    --text:#F6F4FF;
+    --muted:#A79FC9;
+    --radius:14px;
+    --radius-sm:10px;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{
+    background:
+      radial-gradient(ellipse 50% 35% at 10% -5%, rgba(255,47,180,0.18), transparent 60%),
+      radial-gradient(ellipse 45% 35% at 105% 15%, rgba(43,246,224,0.14), transparent 60%),
+      var(--bg);
+    color:var(--text);
+    font-family:'Manrope',sans-serif;
+    line-height:1.5;
+    min-height:100vh;
+  }
+  h1,h2,h3,.display{
+    font-family:'Unbounded',sans-serif;
+    text-transform:uppercase;letter-spacing:-0.01em;line-height:1.05;
+  }
+  .mono{font-family:'Space Mono',monospace;}
+  a{color:inherit;text-decoration:none;}
+  img{max-width:100%;display:block;}
+  button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit;}
+  input,select,textarea{font-family:inherit;font-size:14px;color:var(--text);}
+  :focus-visible{outline:2px solid var(--cyan);outline-offset:2px;}
+
+  /* ===== LOGIN ===== */
+  .login-screen{
+    min-height:100vh;display:flex;align-items:center;justify-content:center;
+    padding:24px;position:relative;overflow:hidden;
+  }
+  .login-screen::before, .login-screen::after{
+    content:'';position:absolute;border-radius:50%;filter:blur(80px);opacity:0.45;
+  }
+  .login-screen::before{width:380px;height:380px;background:var(--pink);top:-140px;left:-100px;}
+  .login-screen::after{width:340px;height:340px;background:var(--cyan);bottom:-140px;right:-100px;}
+  .login-box{
+    width:100%;max-width:380px;background:var(--panel-solid);border:1px solid var(--line);
+    border-radius:20px;padding:38px 34px;position:relative;z-index:1;
+    box-shadow:0 30px 70px rgba(0,0,0,0.5);
+  }
+  .login-brand{font-family:'Unbounded',sans-serif;font-size:30px;font-weight:800;color:var(--text);margin-bottom:6px;}
+  .login-brand span{
+    background:linear-gradient(120deg, var(--pink), var(--violet), var(--cyan));
+    -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+  }
+  .login-sub{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:var(--muted);margin-bottom:30px;}
+  .login-box .field label{color:var(--muted);}
+  .login-box .field input{background:var(--panel);border:1px solid var(--line);color:var(--text);}
+  .login-error{color:var(--pink);font-size:13px;margin:-6px 0 14px;min-height:16px;}
+  .login-box .btn-primary{width:100%;justify-content:center;margin-top:8px;}
+  .login-hint{margin-top:22px;font-size:12px;color:var(--muted);line-height:1.5;}
+
+  /* ===== LAYOUT ===== */
+  .app{display:none;grid-template-columns:230px 1fr;min-height:100vh;}
+  .app.open{display:grid;}
+  .sidebar{
+    background:rgba(10,9,24,0.6);backdrop-filter:blur(14px);border-right:1px solid var(--line);
+    padding:26px 18px;position:sticky;top:0;height:100vh;
+    display:flex;flex-direction:column;
+  }
+  .brand{font-family:'Unbounded',sans-serif;font-size:24px;font-weight:800;letter-spacing:0.01em;margin-bottom:4px;}
+  .brand span{
+    background:linear-gradient(120deg, var(--pink), var(--violet), var(--cyan));
+    -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+  }
+  .brand-sub{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:0.16em;text-transform:uppercase;margin-bottom:40px;}
+  .nav-group{display:flex;flex-direction:column;gap:3px;margin-bottom:28px;}
+  .nav-label{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:0.16em;text-transform:uppercase;margin:0 0 8px 12px;}
+  .nav-btn{
+    display:flex;align-items:center;gap:10px;
+    padding:12px;border-radius:var(--radius-sm);
+    font-size:14px;font-weight:600;color:var(--muted);
+    transition:background .15s, color .15s;text-align:left;width:100%;
+  }
+  .nav-btn .ico{width:18px;text-align:center;font-family:'Space Mono',monospace;font-size:13px;}
+  .nav-btn:hover{background:var(--panel);color:var(--text);}
+  .nav-btn.active{background:linear-gradient(135deg, var(--pink), var(--violet));color:#fff;}
+  .sidebar-foot{margin-top:auto;padding-top:20px;border-top:1px solid var(--line);font-size:12px;color:var(--muted);}
+  .sidebar-foot b{color:var(--text);display:block;font-size:13px;margin-bottom:2px;}
+
+  .main{padding:36px 40px 80px;}
+  .topbar{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:32px;flex-wrap:wrap;gap:16px;}
+  .eyebrow{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:var(--lime);display:block;margin-bottom:8px;}
+  .topbar h2{font-size:32px;}
+  .stat-row{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:32px;}
+  .stat{
+    background:var(--panel);border:1px solid var(--line);color:var(--text);padding:18px 22px;border-radius:var(--radius);
+    min-width:150px;flex:1;backdrop-filter:blur(10px);
+  }
+  .stat .num{font-family:'Unbounded',sans-serif;font-weight:800;font-size:28px;
+    background:linear-gradient(100deg, var(--lime), var(--cyan));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+  .stat .label{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-top:4px;}
+
+  .btn-primary{
+    background:linear-gradient(135deg, var(--pink), var(--violet));color:#fff;
+    padding:13px 22px;font-weight:700;font-size:13px;
+    text-transform:uppercase;letter-spacing:0.04em;
+    border-radius:100px;
+    transition:transform .15s, filter .2s;
+    display:inline-flex;align-items:center;gap:8px;
+    box-shadow:0 8px 22px rgba(255,47,180,0.35);
+  }
+  .btn-primary:hover{transform:translateY(-1px);filter:brightness(1.08);}
+  .btn-ghost{
+    border:1px solid var(--line);color:var(--text);background:var(--panel);
+    padding:11px 20px;font-weight:700;font-size:13px;
+    text-transform:uppercase;letter-spacing:0.04em;
+    border-radius:100px;
+    transition:border-color .2s, background .2s;
+    display:inline-flex;align-items:center;gap:8px;
+  }
+  .btn-ghost:hover{border-color:var(--cyan);}
+  .btn-icon{
+    width:34px;height:34px;border-radius:50%;
+    display:inline-flex;align-items:center;justify-content:center;
+    border:1px solid var(--line);color:var(--text);font-size:14px;background:var(--panel);
+    transition:border-color .2s, background .2s;
+  }
+  .btn-icon:hover{border-color:var(--cyan);}
+  .btn-icon.danger:hover{border-color:var(--pink);color:var(--pink);}
+
+  /* ===== CARD / TABLE ===== */
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;backdrop-filter:blur(10px);}
+  table{width:100%;border-collapse:collapse;}
+  thead th{
+    text-align:left;font-family:'Space Mono',monospace;font-size:10.5px;letter-spacing:0.08em;
+    text-transform:uppercase;color:var(--muted);padding:14px 18px;border-bottom:1px solid var(--line);
+    background:rgba(255,255,255,0.03);
+  }
+  tbody td{padding:14px 18px;border-bottom:1px solid var(--line);font-size:14px;vertical-align:middle;}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr:hover{background:rgba(255,255,255,0.03);}
+  .prod-cell{display:flex;align-items:center;gap:12px;}
+  .thumb{width:44px;height:44px;border-radius:var(--radius-sm);object-fit:cover;background:var(--panel);flex-shrink:0;}
+  .prod-name{font-weight:700;}
+  .prod-cat{font-size:12px;color:var(--muted);}
+  .price{font-family:'Space Mono',monospace;font-weight:700;color:var(--lime);}
+  .phone-cell{font-family:'Space Mono',monospace;font-size:12.5px;color:var(--cyan);}
+  .badge{
+    display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:20px;
+    font-family:'Space Mono',monospace;font-size:10.5px;letter-spacing:0.06em;text-transform:uppercase;font-weight:700;
+  }
+  .badge::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;}
+  .badge.in{background:rgba(198,255,61,0.14);color:var(--lime);}
+  .badge.out{background:rgba(255,47,180,0.14);color:var(--pink);}
+  .actions-cell{display:flex;gap:8px;justify-content:flex-end;}
+
+  .status-badge{
+    display:inline-flex;align-items:center;padding:5px 11px;border-radius:20px;
+    font-family:'Space Mono',monospace;font-size:10.5px;letter-spacing:0.05em;text-transform:uppercase;font-weight:700;
+  }
+  .status-new{background:rgba(255,176,32,0.18);color:var(--amber);}
+  .status-confirmed{background:rgba(138,92,255,0.18);color:#c3b3ff;}
+  .status-shipped{background:rgba(43,246,224,0.16);color:var(--cyan);}
+  .status-done{background:rgba(198,255,61,0.16);color:var(--lime);}
+  .status-cancelled{background:rgba(255,47,180,0.14);color:var(--pink);}
+
+  .empty{padding:60px 20px;text-align:center;color:var(--muted);}
+  .empty .display{font-size:22px;color:var(--text);margin-bottom:8px;}
+
+  /* ===== SKELETON (instant paint while syncing — no spinner, no text) ===== */
+  .skel-row td{padding:14px 18px;}
+  .skel-cell{display:flex;align-items:center;gap:12px;}
+  .skel-thumb{width:44px;height:44px;border-radius:var(--radius-sm);flex-shrink:0;
+    background:linear-gradient(100deg,#1c1838 30%,#2a2350 50%,#1c1838 70%);background-size:200% 100%;animation:skel-shimmer 1.3s ease-in-out infinite;}
+  .skel-line{height:11px;border-radius:6px;
+    background:linear-gradient(100deg,#1c1838 30%,#2a2350 50%,#1c1838 70%);background-size:200% 100%;animation:skel-shimmer 1.3s ease-in-out infinite;}
+  .skel-line.w40{width:40px;}
+  .skel-line.w50{width:60px;}
+  .skel-line.w60{width:90px;}
+  .skel-line.w70{width:120px;}
+  @keyframes skel-shimmer{0%{background-position:200% 0;}100%{background-position:-200% 0;}}
+
+  /* ===== TABS ===== */
+  .view{display:none;}
+  .view.active{display:block;}
+
+  /* ===== MODAL ===== */
+  .modal-overlay{
+    position:fixed;inset:0;background:rgba(6,5,16,0.72);backdrop-filter:blur(3px);z-index:200;
+    display:none;align-items:flex-start;justify-content:center;padding:48px 20px;overflow-y:auto;
+  }
+  .modal-overlay.open{display:flex;}
+  .modal{
+    background:var(--panel-solid);border:1px solid var(--line);border-radius:var(--radius);max-width:560px;width:100%;
+    padding:32px;position:relative;box-shadow:0 30px 70px rgba(0,0,0,0.5);
+  }
+  .modal h3{font-size:24px;margin-bottom:22px;}
+  .modal-close{position:absolute;top:18px;right:18px;font-size:20px;color:var(--muted);width:34px;height:34px;border-radius:50%;background:var(--panel);}
+  .field{margin-bottom:16px;}
+  .field label{display:block;font-family:'Space Mono',monospace;font-size:10.5px;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin-bottom:6px;}
+  .field input[type=text], .field input[type=number], .field select, .field textarea{
+    width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:var(--radius-sm);
+    background:var(--panel);color:var(--text);
+  }
+  .field select option{background:var(--panel-solid);}
+  .field textarea{resize:vertical;min-height:70px;}
+  .field-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  .photo-drop{
+    border:1.5px dashed var(--line);border-radius:var(--radius-sm);
+    padding:18px;text-align:center;cursor:pointer;position:relative;
+    display:flex;align-items:center;gap:14px;
+  }
+  .photo-drop:hover{border-color:var(--cyan);}
+  .photo-drop img{width:64px;height:64px;object-fit:cover;border-radius:var(--radius-sm);}
+  .photo-drop .ph-text{font-size:12.5px;color:var(--muted);text-align:left;}
+  .photo-drop input{position:absolute;inset:0;opacity:0;cursor:pointer;}
+  .toggle-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;}
+  .switch{position:relative;width:42px;height:24px;flex-shrink:0;}
+  .switch input{opacity:0;width:0;height:0;}
+  .switch .slider{position:absolute;inset:0;background:var(--line);border-radius:20px;transition:.2s;cursor:pointer;}
+  .switch .slider::before{content:"";position:absolute;width:18px;height:18px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s;}
+  .switch input:checked + .slider{background:var(--lime);}
+  .switch input:checked + .slider::before{transform:translateX(18px);}
+  .modal-actions{display:flex;gap:12px;margin-top:22px;}
+
+  /* order detail modal */
+  .odetail dl{display:grid;grid-template-columns:120px 1fr;gap:10px 12px;font-size:14px;margin-bottom:18px;}
+  .odetail dt{color:var(--muted);font-family:'Space Mono',monospace;font-size:11px;text-transform:uppercase;align-self:center;}
+  .odetail dd{font-weight:600;}
+  .odetail dd.highlight{color:var(--cyan);font-family:'Space Mono',monospace;}
+  .odetail .items{border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:12px 0;margin-bottom:18px;}
+  .odetail .item-row{display:flex;justify-content:space-between;font-size:13.5px;padding:4px 0;color:var(--text);}
+  .odetail .item-row span:last-child{font-family:'Space Mono',monospace;color:var(--lime);}
+  .odetail .total-row{display:flex;justify-content:space-between;font-weight:800;font-size:16px;margin-top:6px;}
+
+  .toast{
+    position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(10px);
+    background:var(--panel-solid);border:1px solid var(--line);color:var(--text);padding:13px 22px;border-radius:100px;
+    font-size:13.5px;font-weight:600;z-index:300;opacity:0;pointer-events:none;transition:.25s;
+    border-left:3px solid var(--lime);max-width:min(560px, 90vw);
+  }
+  .toast.error{border-left-color:var(--pink);}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+  .search-row{display:flex;gap:12px;margin-bottom:18px;flex-wrap:wrap;align-items:center;justify-content:space-between;}
+  .search-input{
+    padding:11px 15px;border:1px solid var(--line);border-radius:100px;
+    background:var(--panel);min-width:220px;color:var(--text);
+  }
+  .filter-select{padding:11px 14px;border:1px solid var(--line);border-radius:100px;background:var(--panel);color:var(--text);}
+
+  @media (max-width:860px){
+    .app{grid-template-columns:1fr;}
+    .sidebar{position:relative;height:auto;flex-direction:row;align-items:center;padding:14px 16px;gap:16px;}
+    .brand-sub{display:none;}
+    .nav-group{flex-direction:row;margin-bottom:0;}
+    .nav-label{display:none;}
+    .sidebar-foot{display:none;}
+    .brand{margin-bottom:0;font-size:20px;}
+    .main{padding:24px 18px 60px;}
+    thead{display:none;}
+    table, tbody, tr, td{display:block;width:100%;}
+    tbody tr{border-bottom:1px solid var(--line);padding:14px 0;}
+    tbody td{border:none;padding:4px 0;}
+    .actions-cell{justify-content:flex-start;margin-top:8px;}
+  }
+</style>
+</head>
+<body>
+
+<!-- ===== LOGIN SCREEN ===== -->
+<div class="login-screen" id="loginScreen">
+  <div class="login-box">
+    <div class="login-brand">BI<span>X</span></div>
+    <div class="login-sub">Вход в админ-панель</div>
+    <form id="loginForm">
+      <div class="field">
+        <label>Email</label>
+        <input type="email" id="loginUser" required autocomplete="username">
+      </div>
+      <div class="field">
+        <label>Пароль</label>
+        <input type="password" id="loginPass" required autocomplete="current-password">
+      </div>
+      <div class="login-error" id="loginError"></div>
+      <button type="submit" class="btn-primary" id="loginSubmitBtn">Войти</button>
+    </form>
+    <div class="login-hint">Доступ по учётной записи, созданной в Supabase.</div>
+  </div>
+</div>
+
+<div class="app">
+  <!-- ===== SIDEBAR ===== -->
+  <aside class="sidebar">
+    <div>
+      <div class="brand">BI<span>X</span></div>
+      <div class="brand-sub">Админ-панель</div>
+    </div>
+    <div class="nav-group">
+      <div class="nav-label">Каталог</div>
+      <button class="nav-btn active" data-view="products"><span class="ico">■</span> Товары</button>
+    </div>
+    <div class="nav-group">
+      <div class="nav-label">Продажи</div>
+      <button class="nav-btn" data-view="orders"><span class="ico">▤</span> Заказы</button>
+    </div>
+    <div class="sidebar-foot">
+      <b>BIX Admin</b>
+      Данные хранятся в Supabase.
+      <button id="logoutBtn" class="btn-ghost" style="margin-top:12px;width:100%;justify-content:center;padding:10px 14px;">Выйти</button>
+    </div>
+  </aside>
+
+  <!-- ===== MAIN ===== -->
+  <main class="main">
+
+    <!-- ---------- PRODUCTS VIEW ---------- -->
+    <section class="view active" id="view-products">
+      <div class="topbar">
+        <div>
+          <span class="eyebrow">Каталог</span>
+          <h2>Товары</h2>
+        </div>
+        <button class="btn-primary" id="openAddProduct">+ Добавить товар</button>
+      </div>
+
+      <div class="stat-row" id="productStats"></div>
+
+      <div class="search-row">
+        <input type="text" class="search-input" id="prodSearch" placeholder="Поиск по названию…">
+        <select class="filter-select" id="prodCatFilter">
+          <option value="">Все категории</option>
+          <option value="Одежда">Одежда</option>
+          <option value="Обувь">Обувь</option>
+          <option value="Аксессуары">Аксессуары</option>
+          <option value="Электроника">Электроника</option>
+          <option value="Мужская сумка">Мужская сумка</option>
+        </select>
+      </div>
+
+      <div class="panel">
+        <table>
+          <thead>
+            <tr>
+              <th>Товар</th>
+              <th>Категория</th>
+              <th>Цена</th>
+              <th>Наличие</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="productsBody">
+            <tr class="skel-row"><td><div class="skel-cell"><div class="skel-thumb"></div><div class="skel-line w70"></div></div></td><td><div class="skel-line w50"></div></td><td><div class="skel-line w40"></div></td><td><div class="skel-line w40"></div></td><td></td></tr>
+            <tr class="skel-row"><td><div class="skel-cell"><div class="skel-thumb"></div><div class="skel-line w70"></div></div></td><td><div class="skel-line w50"></div></td><td><div class="skel-line w40"></div></td><td><div class="skel-line w40"></div></td><td></td></tr>
+            <tr class="skel-row"><td><div class="skel-cell"><div class="skel-thumb"></div><div class="skel-line w70"></div></div></td><td><div class="skel-line w50"></div></td><td><div class="skel-line w40"></div></td><td><div class="skel-line w40"></div></td><td></td></tr>
+          </tbody>
+        </table>
+        <div class="empty" id="productsEmpty" style="display:none;">
+          <div class="display">Товаров пока нет</div>
+          <div>Добавьте первый товар, чтобы он появился в каталоге.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------- ORDERS VIEW ---------- -->
+    <section class="view" id="view-orders">
+      <div class="topbar">
+        <div>
+          <span class="eyebrow">Продажи</span>
+          <h2>Заказы</h2>
+        </div>
+      </div>
+
+      <div class="stat-row" id="orderStats"></div>
+
+      <div class="search-row">
+        <input type="text" class="search-input" id="orderSearch" placeholder="Поиск по имени, телефону или № заказа…">
+        <select class="filter-select" id="orderStatusFilter">
+          <option value="">Все статусы</option>
+          <option value="new">Новый</option>
+          <option value="confirmed">Подтверждён</option>
+          <option value="shipped">Отправлен</option>
+          <option value="done">Доставлен</option>
+          <option value="cancelled">Отменён</option>
+        </select>
+      </div>
+
+      <div class="panel">
+        <table>
+          <thead>
+            <tr>
+              <th>№ заказа</th>
+              <th>Покупатель</th>
+              <th>Телефон</th>
+              <th>Сумма</th>
+              <th>Статус</th>
+              <th>Дата</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="ordersBody">
+            <tr class="skel-row"><td><div class="skel-line w40"></div></td><td><div class="skel-line w60"></div></td><td><div class="skel-line w50"></div></td><td><div class="skel-line w40"></div></td><td><div class="skel-line w40"></div></td><td><div class="skel-line w40"></div></td><td></td></tr>
+            <tr class="skel-row"><td><div class="skel-line w40"></div></td><td><div class="skel-line w60"></div></td><td><div class="skel-line w50"></div></td><td><div class="skel-line w40"></div></td><td><div class="skel-line w40"></div></td><td><div class="skel-line w40"></div></td><td></td></tr>
+            <tr class="skel-row"><td><div class="skel-line w40"></div></td><td><div class="skel-line w60"></div></td><td><div class="skel-line w50"></div></td><td><div class="skel-line w40"></div></td><td><div class="skel-line w40"></div></td><td><div class="skel-line w40"></div></td><td></td></tr>
+          </tbody>
+        </table>
+        <div class="empty" id="ordersEmpty" style="display:none;">
+          <div class="display">Заказов пока нет</div>
+          <div>Новые заказы из корзины появятся здесь.</div>
+        </div>
+      </div>
+    </section>
+
+
+  </main>
+</div>
+
+<!-- ===== ADD/EDIT PRODUCT MODAL ===== -->
+<div class="modal-overlay" id="productModal">
+  <div class="modal">
+    <button class="modal-close" id="closeProductModal">×</button>
+    <h3 id="productModalTitle">Добавить товар</h3>
+    <form id="productForm">
+      <input type="hidden" id="prodId">
+      <div class="field">
+        <label>Фотография</label>
+        <div class="photo-drop">
+          <img id="photoPreview" src="" alt="" style="display:none;">
+          <div class="ph-text" id="photoHint">Нажмите, чтобы загрузить фото товара<br>JPG, PNG — до 5 МБ</div>
+          <input type="file" accept="image/*" id="prodPhotoInput">
+        </div>
+      </div>
+      <div class="field">
+        <label>Название товара</label>
+        <input type="text" id="prodName" required placeholder="Например: Куртка BIX Storm">
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Категория</label>
+          <select id="prodCat" required>
+            <option value="Одежда">Одежда</option>
+            <option value="Обувь">Обувь</option>
+            <option value="Аксессуары">Аксессуары</option>
+            <option value="Электроника">Электроника</option>
+            <option value="Мужская сумка">Мужская сумка</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Цена, сум</label>
+          <input type="number" id="prodPrice" required min="0" placeholder="450000">
+        </div>
+      </div>
+      <div class="field">
+        <label>Описание</label>
+        <textarea id="prodDesc" placeholder="Материал, размеры, особенности…"></textarea>
+      </div>
+      <div class="toggle-row">
+        <label class="mono" style="font-size:13px;">Есть в наличии</label>
+        <label class="switch">
+          <input type="checkbox" id="prodInStock" checked>
+          <span class="slider"></span>
+        </label>
+      </div>
+      <div class="modal-actions">
+        <button type="submit" class="btn-primary" style="flex:1;justify-content:center;">Сохранить товар</button>
+        <button type="button" class="btn-ghost" id="cancelProductModal">Отмена</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ===== ORDER DETAIL MODAL ===== -->
+<div class="modal-overlay" id="orderModal">
+  <div class="modal odetail">
+    <button class="modal-close" id="closeOrderModal">×</button>
+    <h3>Заказ <span id="odNumber"></span></h3>
+    <dl id="odMeta"></dl>
+    <div class="items" id="odItems"></div>
+    <div class="total-row"><span>Итого</span><span id="odTotal"></span></div>
+    <div class="field" style="margin-top:20px;">
+      <label>Статус заказа</label>
+      <select id="odStatusSelect">
+        <option value="new">Новый</option>
+        <option value="confirmed">Подтверждён</option>
+        <option value="shipped">Отправлен</option>
+        <option value="done">Доставлен</option>
+        <option value="cancelled">Отменён</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-primary" id="saveOrderStatus" style="flex:1;justify-content:center;">Обновить статус</button>
+      <button class="btn-ghost" id="deleteOrderBtn" style="justify-content:center;">Удалить</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  // ================= SUPABASE INIT =================
+  const SUPABASE_URL = 'https://yjeuxtwdoaxbpxdsapvd.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_ylnocwWgu4-xkr-vJLXigw_jXLlkzNt';
+  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  // ================= AUTH =================
+  const loginScreen = document.getElementById('loginScreen');
+  const appEl = document.querySelector('.app');
+  const loginForm = document.getElementById('loginForm');
+  const loginError = document.getElementById('loginError');
+  const loginSubmitBtn = document.getElementById('loginSubmitBtn');
+
+  async function showApp(){
+    loginScreen.style.display = 'none';
+    appEl.classList.add('open');
+
+    // Instant paint from cache (no network wait) — skeleton stays if empty.
+    const cachedP = readCache(PROD_CACHE_KEY);
+    const cachedO = readCache(ORD_CACHE_KEY);
+    if(cachedP){ allProductsAdmin = cachedP; renderProducts(); }
+    if(cachedO){ allOrdersAdmin = cachedO; renderOrders(); }
+
+    // Then sync with the database in the background.
+    const [freshP, freshO] = await Promise.all([fetchProductsFromDB(), fetchOrdersFromDB()]);
+    if(freshP){ allProductsAdmin = freshP; writeCache(PROD_CACHE_KEY, freshP); renderProducts(); }
+    if(freshO){ allOrdersAdmin = freshO; writeCache(ORD_CACHE_KEY, freshO); renderOrders(); }
+  }
+
+  async function refreshProducts(){
+    const fresh = await fetchProductsFromDB();
+    if(fresh){ allProductsAdmin = fresh; writeCache(PROD_CACHE_KEY, fresh); renderProducts(); }
+  }
+  async function refreshOrders(){
+    const fresh = await fetchOrdersFromDB();
+    if(fresh){ allOrdersAdmin = fresh; writeCache(ORD_CACHE_KEY, fresh); renderOrders(); }
+  }
+  function showLogin(){
+    appEl.classList.remove('open');
+    loginScreen.style.display = 'flex';
+  }
+
+  async function checkSession(){
+    const { data } = await sb.auth.getSession();
+    if(data.session){ showApp(); } else { showLogin(); }
+  }
+  checkSession();
+
+  loginForm.addEventListener('submit', async e => {
+    e.preventDefault();
+    const email = document.getElementById('loginUser').value.trim();
+    const pass = document.getElementById('loginPass').value;
+    loginError.textContent = '';
+    loginSubmitBtn.textContent = 'Входим…';
+    const { error } = await sb.auth.signInWithPassword({ email, password: pass });
+    loginSubmitBtn.textContent = 'Войти';
+    if(error){
+      loginError.textContent = 'Неверный email или пароль';
+    } else {
+      loginForm.reset();
+      showApp();
+    }
+  });
+
+  document.getElementById('logoutBtn').addEventListener('click', async () => {
+    await sb.auth.signOut();
+    showLogin();
+  });
+
+  // ================= DATA LAYER (Supabase) =================
+  const STATUS_LABELS = {
+    new:'Новый', confirmed:'Подтверждён', shipped:'Отправлен', done:'Доставлен', cancelled:'Отменён'
+  };
+  const STATUS_CLASS = {
+    new:'status-new', confirmed:'status-confirmed', shipped:'status-shipped', done:'status-done', cancelled:'status-cancelled'
+  };
+
+  // In-memory state — loaded once, filtered locally, so typing in search
+  // never re-hits the database.
+  let allProductsAdmin = [];
+  let allOrdersAdmin = [];
+
+  const PROD_CACHE_KEY = 'bix_admin_products_cache_v1';
+  const ORD_CACHE_KEY = 'bix_admin_orders_cache_v1';
+  function readCache(key){ try{ const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : null; }catch(e){ return null; } }
+  function writeCache(key, list){
+    try{
+      localStorage.setItem(key, JSON.stringify(list));
+    }catch(e){
+      // Скорее всего превышена квота localStorage из-за крупных фото —
+      // сохраняем облегчённую версию без фото, чтобы список товаров
+      // всё равно грузился мгновенно при следующем открытии.
+      try{
+        const lite = Array.isArray(list) ? list.map(item => {
+          if(item && typeof item === 'object' && 'photo' in item){
+            const { photo, ...rest } = item;
+            return rest;
+          }
+          return item;
+        }) : list;
+        localStorage.setItem(key, JSON.stringify(lite));
+      }catch(e2){ console.warn('Не удалось сохранить кэш', e2); }
+    }
+  }
+
+  async function fetchProductsFromDB(){
+    const { data, error } = await sb.from('products').select('*').order('created_at', {ascending:false});
+    if(error){ showToast('Ошибка загрузки товаров', true); console.error(error); return null; }
+    return data.map(p => ({id:p.id, name:p.name, cat:p.cat, price:p.price, desc:p.desc, inStock:p.in_stock, photo:p.photo}));
+  }
+  async function addProduct(data){
+    const { error } = await sb.from('products').insert({
+      name:data.name, cat:data.cat, price:data.price, desc:data.desc, in_stock:data.inStock, photo:data.photo
+    });
+    if(error){ showToast('Не удалось сохранить товар: ' + explainError(error), true); console.error(error); return false; }
+    return true;
+  }
+  async function updateProduct(id, data){
+    const { error } = await sb.from('products').update({
+      name:data.name, cat:data.cat, price:data.price, desc:data.desc, in_stock:data.inStock, photo:data.photo
+    }).eq('id', id);
+    if(error){ showToast('Не удалось обновить товар: ' + explainError(error), true); console.error(error); return false; }
+    return true;
+  }
+  async function removeProduct(id){
+    const { error } = await sb.from('products').delete().eq('id', id);
+    if(error){ showToast('Не удалось удалить товар: ' + explainError(error), true); console.error(error); return false; }
+    return true;
+  }
+  function explainError(error){
+    const msg = (error && error.message) || '';
+    if(/row-level security/i.test(msg)) return 'нет прав на запись (RLS). Добавьте policy на insert/update/delete';
+    if(/column .* does not exist/i.test(msg)) return 'в таблице нет нужной колонки (' + msg + ')';
+    if(/violates not-null/i.test(msg)) return 'не заполнено обязательное поле (' + msg + ')';
+    if(/permission denied/i.test(msg)) return 'нет доступа к таблице';
+    return msg || 'неизвестная ошибка, см. консоль';
+  }
+
+  async function fetchOrdersFromDB(){
+    const { data, error } = await sb.from('orders').select('*').order('date', {ascending:false});
+    if(error){ showToast('Ошибка загрузки заказов', true); console.error(error); return null; }
+    return data;
+  }
+  async function updateOrderStatus(id, status){
+    const { error } = await sb.from('orders').update({status}).eq('id', id);
+    if(error){ showToast('Не удалось обновить статус', true); console.error(error); return false; }
+    return true;
+  }
+  async function removeOrder(id){
+    const { data, error } = await sb.from('orders').delete().eq('id', id).select();
+    if(error){ showToast('Не удалось удалить заказ: ' + explainError(error), true); console.error(error); return false; }
+    if(!data || data.length === 0){
+      // Supabase не вернул ошибку, но и не удалил ни одной строки —
+      // почти всегда означает, что нет RLS-политики на delete для orders.
+      showToast('Заказ не удалён: нет прав (проверьте RLS policy на delete для orders)', true);
+      console.error('Delete affected 0 rows — likely missing RLS policy on orders.delete');
+      return false;
+    }
+    return true;
+  }
+
+  // Заказ мог прийти со старой/другой схемой колонок — проверяем все
+  // разумные варианты названий, чтобы телефон и адрес не терялись из вида.
+  function orderPhone(o){ return o.customer_phone || o.phone || o.customerPhone || o.tel || ''; }
+  function orderAddress(o){ return o.customer_address || o.address || o.customerAddress || ''; }
+  function orderName(o){ return o.customer_name || o.name || o.customerName || ''; }
+
+  function fmtPrice(n){ return Number(n).toLocaleString('ru-RU') + ' сум'; }
+  function fmtDate(iso){ if(!iso) return '—'; const d = new Date(iso); if(isNaN(d)) return '—'; return d.toLocaleDateString('ru-RU', {day:'2-digit', month:'2-digit', year:'numeric'}); }
+
+
+  function showToast(msg, isError){
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.toggle('error', !!isError);
+    t.classList.add('show');
+    clearTimeout(t._timer);
+    t._timer = setTimeout(() => t.classList.remove('show'), isError ? 5000 : 2400);
+  }
+
+  // ================= NAVIGATION =================
+  document.querySelectorAll('.nav-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+      document.getElementById('view-' + btn.dataset.view).classList.add('active');
+    });
+  });
+
+  // ================= PRODUCTS RENDER =================
+  function renderProductStats(list){
+    const inStock = list.filter(p => p.inStock).length;
+    document.getElementById('productStats').innerHTML = `
+      <div class="stat"><div class="num">${list.length}</div><div class="label">Всего товаров</div></div>
+      <div class="stat"><div class="num">${inStock}</div><div class="label">В наличии</div></div>
+      <div class="stat"><div class="num">${list.length - inStock}</div><div class="label">Нет в наличии</div></div>
+    `;
+  }
+
+  function renderProducts(){
+    const all = allProductsAdmin;
+    renderProductStats(all);
+    const search = document.getElementById('prodSearch').value.trim().toLowerCase();
+    const catFilter = document.getElementById('prodCatFilter').value;
+    let list = all;
+    if(search) list = list.filter(p => p.name.toLowerCase().includes(search));
+    if(catFilter) list = list.filter(p => p.cat === catFilter);
+
+    const body = document.getElementById('productsBody');
+    const empty = document.getElementById('productsEmpty');
+    if(list.length === 0){
+      body.innerHTML = '';
+      empty.style.display = 'block';
+      return;
+    }
+    empty.style.display = 'none';
+    body.innerHTML = list.map(p => `
+      <tr>
+        <td>
+          <div class="prod-cell">
+            <img class="thumb" src="${p.photo || placeholderImg()}" alt="" loading="lazy" decoding="async">
+            <div>
+              <div class="prod-name">${escapeHtml(p.name)}</div>
+              <div class="prod-cat">${escapeHtml(p.cat)}</div>
+            </div>
+          </div>
+        </td>
+        <td>${escapeHtml(p.cat)}</td>
+        <td class="price">${fmtPrice(p.price)}</td>
+        <td><span class="badge ${p.inStock ? 'in' : 'out'}">${p.inStock ? 'В наличии' : 'Нет в наличии'}</span></td>
+        <td>
+          <div class="actions-cell">
+            <button class="btn-icon" title="Изменить" onclick="editProduct('${p.id}')">✎</button>
+            <button class="btn-icon danger" title="Удалить" onclick="deleteProduct('${p.id}')">✕</button>
+          </div>
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  function placeholderImg(){
+    return 'data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44"><rect width="44" height="44" fill="#241a3a"/></svg>`);
+  }
+  function escapeHtml(s){ return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+
+  document.getElementById('prodSearch').addEventListener('input', renderProducts);
+  document.getElementById('prodCatFilter').addEventListener('change', renderProducts);
+
+  // ================= PRODUCT MODAL =================
+  const productModal = document.getElementById('productModal');
+  const productForm = document.getElementById('productForm');
+  let currentPhotoData = '';
+
+  document.getElementById('openAddProduct').addEventListener('click', () => openProductModal());
+  document.getElementById('closeProductModal').addEventListener('click', closeProductModal);
+  document.getElementById('cancelProductModal').addEventListener('click', closeProductModal);
+  productModal.addEventListener('click', e => { if(e.target === productModal) closeProductModal(); });
+
+  function openProductModal(product){
+    document.getElementById('productModalTitle').textContent = product ? 'Изменить товар' : 'Добавить товар';
+    document.getElementById('prodId').value = product ? product.id : '';
+    document.getElementById('prodName').value = product ? product.name : '';
+    document.getElementById('prodCat').value = product ? product.cat : 'Одежда';
+    document.getElementById('prodPrice').value = product ? product.price : '';
+    document.getElementById('prodDesc').value = product ? product.desc : '';
+    document.getElementById('prodInStock').checked = product ? product.inStock : true;
+    currentPhotoData = product ? (product.photo || '') : '';
+    const preview = document.getElementById('photoPreview');
+    const hint = document.getElementById('photoHint');
+    if(currentPhotoData){ preview.src = currentPhotoData; preview.style.display='block'; hint.style.display='none'; }
+    else { preview.style.display='none'; hint.style.display='block'; }
+    productModal.classList.add('open');
+  }
+  function closeProductModal(){ productModal.classList.remove('open'); productForm.reset(); }
+
+  // Сжимаем фото на устройстве перед сохранением: телефонные фото весят
+  // по несколько мегабайт, из-за чего каталог грузился медленно и не
+  // помещался в кэш браузера. После сжатия — обычно 50-150 КБ.
+  function compressImage(file, maxDim, quality){
+    maxDim = maxDim || 1000;
+    quality = quality || 0.72;
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+          let { width, height } = img;
+          if(width > height && width > maxDim){
+            height = Math.round(height * maxDim / width);
+            width = maxDim;
+          } else if(height >= width && height > maxDim){
+            width = Math.round(width * maxDim / height);
+            height = maxDim;
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.onerror = () => reject(new Error('Не удалось прочитать изображение'));
+        img.src = reader.result;
+      };
+      reader.onerror = () => reject(new Error('Не удалось прочитать файл'));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  document.getElementById('prodPhotoInput').addEventListener('change', async e => {
+    const file = e.target.files[0];
+    if(!file) return;
+    try{
+      currentPhotoData = await compressImage(file);
+      const preview = document.getElementById('photoPreview');
+      preview.src = currentPhotoData;
+      preview.style.display = 'block';
+      document.getElementById('photoHint').style.display = 'none';
+    }catch(err){
+      console.error(err);
+      showToast('Не удалось обработать фото, попробуйте другое', true);
+    }
+  });
+
+  productForm.addEventListener('submit', async e => {
+    e.preventDefault();
+    const id = document.getElementById('prodId').value;
+    const data = {
+      name: document.getElementById('prodName').value.trim(),
+      cat: document.getElementById('prodCat').value,
+      price: Number(document.getElementById('prodPrice').value) || 0,
+      desc: document.getElementById('prodDesc').value.trim(),
+      inStock: document.getElementById('prodInStock').checked,
+      photo: currentPhotoData
+    };
+    let ok;
+    if(id){
+      ok = await updateProduct(id, data);
+      if(ok) showToast('Товар обновлён');
+    } else {
+      ok = await addProduct(data);
+      if(ok) showToast('Товар добавлен');
+    }
+    closeProductModal();
+    if(ok) await refreshProducts();
+  });
+
+  function editProduct(id){
+    const product = allProductsAdmin.find(p => p.id === id);
+    if(product) openProductModal(product);
+  }
+  async function deleteProduct(id){
+    if(!confirm('Удалить этот товар?')) return;
+    const ok = await removeProduct(id);
+    if(ok){ await refreshProducts(); showToast('Товар удалён'); }
+  }
+
+  // ================= ORDERS RENDER =================
+  function renderOrderStats(list){
+    const newCount = list.filter(o => o.status === 'new').length;
+    const revenue = list.filter(o => o.status !== 'cancelled')
+      .reduce((sum,o) => sum + o.items.reduce((s,i) => s + i.price*i.qty, 0), 0);
+    document.getElementById('orderStats').innerHTML = `
+      <div class="stat"><div class="num">${list.length}</div><div class="label">Всего заказов</div></div>
+      <div class="stat"><div class="num">${newCount}</div><div class="label">Новых</div></div>
+      <div class="stat"><div class="num">${fmtPrice(revenue)}</div><div class="label">Общая сумма</div></div>
+    `;
+  }
+
+  function renderOrders(){
+    const all = allOrdersAdmin;
+    renderOrderStats(all);
+    const search = document.getElementById('orderSearch').value.trim().toLowerCase();
+    const statusFilter = document.getElementById('orderStatusFilter').value;
+    let list = all.slice().sort((a,b) => new Date(b.date || b.created_at || 0) - new Date(a.date || a.created_at || 0));
+    if(search) list = list.filter(o =>
+      orderName(o).toLowerCase().includes(search) ||
+      orderPhone(o).toLowerCase().includes(search) ||
+      String(o.number||'').toLowerCase().includes(search)
+    );
+    if(statusFilter) list = list.filter(o => o.status === statusFilter);
+
+    const body = document.getElementById('ordersBody');
+    const empty = document.getElementById('ordersEmpty');
+    if(list.length === 0){
+      body.innerHTML = '';
+      empty.style.display = 'block';
+      return;
+    }
+    empty.style.display = 'none';
+    body.innerHTML = list.map(o => {
+      const total = o.items.reduce((s,i) => s + i.price*i.qty, 0);
+      const num = o.number || ('#' + String(o.id).slice(0,8));
+      return `
+      <tr>
+        <td class="mono">${escapeHtml(num)}</td>
+        <td>${escapeHtml(orderName(o) || '—')}</td>
+        <td class="phone-cell">${escapeHtml(orderPhone(o) || '—')}</td>
+        <td class="price">${fmtPrice(total)}</td>
+        <td><span class="status-badge ${STATUS_CLASS[o.status]}">${STATUS_LABELS[o.status] || o.status}</span></td>
+        <td>${fmtDate(o.date || o.created_at)}</td>
+        <td><div class="actions-cell">
+          <button class="btn-ghost" style="padding:8px 16px;" onclick="openOrder('${o.id}')">Открыть</button>
+          ${o.status === 'done' ? `<button class="btn-icon danger" title="Удалить заказ" onclick="deleteOrder('${o.id}')">✕</button>` : ''}
+        </div></td>
+      </tr>`;
+    }).join('');
+  }
+
+  document.getElementById('orderSearch').addEventListener('input', renderOrders);
+  document.getElementById('orderStatusFilter').addEventListener('change', renderOrders);
+
+  // ================= ORDER MODAL =================
+  const orderModal = document.getElementById('orderModal');
+  let currentOrderId = '';
+
+  document.getElementById('closeOrderModal').addEventListener('click', () => orderModal.classList.remove('open'));
+  orderModal.addEventListener('click', e => { if(e.target === orderModal) orderModal.classList.remove('open'); });
+  document.getElementById('deleteOrderBtn').addEventListener('click', () => deleteOrder(currentOrderId));
+
+  function openOrder(id){
+    const order = allOrdersAdmin.find(o => o.id === id);
+    if(!order) return;
+    currentOrderId = id;
+    document.getElementById('odNumber').textContent = order.number || ('#' + String(order.id).slice(0,8));
+    const phone = orderPhone(order);
+    const address = orderAddress(order);
+    document.getElementById('odMeta').innerHTML = `
+      <dt>Покупатель</dt><dd>${escapeHtml(orderName(order) || '—')}</dd>
+      <dt>Телефон</dt><dd class="highlight">${escapeHtml(phone || '—')}</dd>
+      <dt>Адрес</dt><dd>${escapeHtml(address || '—')}</dd>
+      <dt>Дата заказа</dt><dd>${fmtDate(order.date || order.created_at)}</dd>
+    `;
+    document.getElementById('odItems').innerHTML = order.items.map(i => `
+      <div class="item-row"><span>${escapeHtml(i.name)} × ${i.qty}</span><span>${fmtPrice(i.price*i.qty)}</span></div>
+    `).join('');
+    const total = order.items.reduce((s,i) => s + i.price*i.qty, 0);
+    document.getElementById('odTotal').textContent = fmtPrice(total);
+    document.getElementById('odStatusSelect').value = order.status;
+    orderModal.classList.add('open');
+  }
+
+  document.getElementById('saveOrderStatus').addEventListener('click', async () => {
+    const status = document.getElementById('odStatusSelect').value;
+    const ok = await updateOrderStatus(currentOrderId, status);
+    if(ok){ await refreshOrders(); showToast('Статус заказа обновлён'); }
+    orderModal.classList.remove('open');
+  });
+
+  async function deleteOrder(id){
+    const order = allOrdersAdmin.find(o => o.id === id);
+    if(order && order.status !== 'done'){
+      if(!confirm('Этот заказ ещё не отмечен как «Доставлен». Всё равно удалить?')) return;
+    } else if(!confirm('Удалить этот заказ?')) return;
+    const ok = await removeOrder(id);
+    if(ok){
+      await refreshOrders();
+      orderModal.classList.remove('open');
+      showToast('Заказ удалён');
+    }
+  }
+</script>
+</body>
+</html>
